@@ -681,16 +681,37 @@ async function finalizarVistoria() {
           resposta.acao || ""
       }));
 
-    const { error: erroRespostas } =
-      await supabaseClient
-        .from("respostas_vistoria")
-        .insert(linhasRespostas);
+  const { error: erroRespostas } =
+  await supabaseClient
+    .from("respostas_vistoria")
+    .insert(linhasRespostas);
 
-    if (erroRespostas) {
-      throw erroRespostas;
+if (erroRespostas) {
+  throw erroRespostas;
+}
+
+// Cópia de segurança no Google Sheets
+try {
+  await fetch(
+    "https://script.google.com/macros/s/AKfycby2yl87uHhqs20pIYyAtAsjConxI0ExvRT_KXACD096dF7qSKopM85IgG3cv24CCf1Rqw/exec",
+    {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify({
+        respostas: linhasRespostas
+      })
     }
+  );
+} catch (erroSheets) {
+  console.error(
+    "Erro ao enviar cópia para o Google Sheets:",
+    erroSheets
+  );
+}
 
-    localStorage.removeItem("tkeRascunho");
+localStorage.removeItem("tkeRascunho");
+
+   
 
     mostrarStatus(
       `Vistoria ${dados.idVistoria} enviada com 43 respostas para o banco central.`
