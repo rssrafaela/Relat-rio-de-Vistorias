@@ -697,11 +697,17 @@ try {
     {
       method: "POST",
       mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
       body: JSON.stringify({
         respostas: linhasRespostas
       })
     }
   );
+
+  console.log("Backup enviado ao Google Sheets.");
+
 } catch (erroSheets) {
   console.error(
     "Erro ao enviar cópia para o Google Sheets:",
