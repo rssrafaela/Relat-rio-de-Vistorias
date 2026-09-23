@@ -52,22 +52,22 @@ async function carregarEquipamentos() {
   mensagem.textContent = "Carregando equipamentos...";
   mensagem.className = "status success";
 
-  if (!Array.isArray(equipamentosLocais)) {
+  if (!Array.isArray(equipamentos)) {
     mensagem.textContent =
       "Erro ao carregar a lista local de equipamentos.";
     mensagem.className = "status error";
     return;
   }
 
-  equipamentosBanco = equipamentosLocais;
+  equipamentosBanco = equipamentos;
   campos.lista.innerHTML = "";
 
   equipamentosBanco.forEach((registro) => {
     const option = document.createElement("option");
 
-    option.value = registro.numero;
+    option.value = registro.equipamento;
     option.label =
-      `${registro.numero} — ${registro.estacao} — ${registro.tipo}`;
+      `${registro.equipamento} — ${registro.estacao} — ${registro.tipo}`;
 
     campos.lista.appendChild(option);
   });
@@ -88,7 +88,7 @@ function registroSelecionado() {
 
   return equipamentosBanco.find(
     (registro) =>
-      String(registro.numero).toUpperCase() === codigo
+      String(registro.equipamento).toUpperCase() === codigo
   );
 }
 
@@ -130,10 +130,10 @@ function preencherEquipamento() {
   campos.estacao.value = registro.estacao || "";
   campos.tipo.value = registro.tipo || "";
   campos.fabricante.value =
-    registro.fabricante_modelo || "";
+    registro.fabricanteModelo || "";
 
   mensagem.textContent =
-    `Equipamento ${registro.numero} selecionado com sucesso.`;
+    `Equipamento ${registro.equipamento} selecionado com sucesso.`;
 
   mensagem.className = "status success";
 
@@ -329,7 +329,7 @@ function dadosVistoria(idVistoria = null) {
       registro?.tipo || "",
 
     fabricanteModelo:
-      registro?.fabricante_modelo || "",
+      registro?.fabricanteModelo || "",
 
     respostas:
       coletarRespostas()
