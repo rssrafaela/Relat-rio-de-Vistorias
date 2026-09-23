@@ -43,7 +43,7 @@ campos.responsavel.addEventListener("change", () => {
 });
 
 /* ======================================================
-   EQUIPAMENTOS — SUPABASE
+   EQUIPAMENTOS — LISTA LOCAL
 ====================================================== */
 
 async function carregarEquipamentos() {
@@ -52,31 +52,20 @@ async function carregarEquipamentos() {
   mensagem.textContent = "Carregando equipamentos...";
   mensagem.className = "status success";
 
-  const { data, error } = await supabaseClient
-    .from("equipamentos")
-    .select(
-      "numero, linha, estacao, tipo, fabricante_modelo"
-    )
-    .order("numero", { ascending: true });
-
-  if (error) {
-    console.error("Erro ao carregar equipamentos:", error);
-
+  if (!Array.isArray(equipamentosLocais)) {
     mensagem.textContent =
-      `Erro ao carregar equipamentos: ${error.message}`;
-
+      "Erro ao carregar a lista local de equipamentos.";
     mensagem.className = "status error";
     return;
   }
 
-  equipamentosBanco = data || [];
+  equipamentosBanco = equipamentosLocais;
   campos.lista.innerHTML = "";
 
   equipamentosBanco.forEach((registro) => {
     const option = document.createElement("option");
 
     option.value = registro.numero;
-
     option.label =
       `${registro.numero} — ${registro.estacao} — ${registro.tipo}`;
 
@@ -85,7 +74,6 @@ async function carregarEquipamentos() {
 
   mensagem.textContent =
     `${equipamentosBanco.length} equipamentos carregados.`;
-
   mensagem.className = "status success";
 
   setTimeout(() => {
@@ -572,18 +560,17 @@ function exportarCSV() {
 }
 
 /* ======================================================
-   ENVIO PARA O SUPABASE
+   ENVIO DIRETO PARA O GOOGLE SHEETS
 ====================================================== */
+
+const GOOGLE_SHEETS_WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycby2yl87uHhqs20pIYyAtAsjConxI0ExvRT_KXACD096dF7qSKopM85IgG3cv24CCf1Rqw/exec";
 
 async function finalizarVistoria() {
   const erroValidacao = validar();
 
   if (erroValidacao) {
-    mostrarStatus(
-      erroValidacao,
-      "error"
-    );
-
+    mostrarStatus(erroValidacao, "error");
     return;
   }
 
@@ -591,151 +578,105 @@ async function finalizarVistoria() {
   const idVistoria = gerarIdVistoria();
   const dados = dadosVistoria(idVistoria);
 
+  const payload = {
+    respostas: dados.respostas.map((resposta) => ({
+      id_vistoria: dados.idVistoria,
+      data_vistoria: dados.data,
+      tecnico: dados.responsavel,
+      equipamento: dados.equipamento,
+      linha: String(dados.linha),
+      estacao: dados.estacao,
+      tipo: dados.tipo,
+      fabricante: dados.fabricanteModelo,
+      ordem: resposta.ordem,
+      secao: resposta.secao,
+      item: resposta.item,
+      resultado: resposta.resultado,
+      descricao: resposta.descricao || "",
+      acao: resposta.acao || ""
+    }))
+  };
+
   botao.disabled = true;
   botao.textContent = "Enviando...";
 
   try {
-    const registroVistoria = {
-      id_vistoria:
-        dados.idVistoria,
-
-      data_vistoria:
-        dados.data,
-
-      tecnico:
-        dados.responsavel,
-
-      equipamento:
-        dados.equipamento,
-
-      linha:
-        String(dados.linha),
-
-      estacao:
-        dados.estacao,
-
-      tipo:
-        dados.tipo,
-
-      fabricante:
-        dados.fabricanteModelo,
-
-      observacoes:
-        "",
-
-      respostas:
-        dados.respostas
-    };
-
-    const { error: erroVistoria } =
-      await supabaseClient
-        .from("vistorias")
-        .insert(registroVistoria);
-
-    if (erroVistoria) {
-      throw erroVistoria;
-    }
-
-    const linhasRespostas =
-      dados.respostas.map((resposta) => ({
-        id_vistoria:
-          dados.idVistoria,
-
-        data_vistoria:
-          dados.data,
-
-        tecnico:
-          dados.responsavel,
-
-        equipamento:
-          dados.equipamento,
-
-        linha:
-          String(dados.linha),
-
-        estacao:
-          dados.estacao,
-
-        tipo:
-          dados.tipo,
-
-        fabricante:
-          dados.fabricanteModelo,
-
-        ordem:
-          resposta.ordem,
-
-        secao:
-          resposta.secao,
-
-        item:
-          resposta.item,
-
-        resultado:
-          resposta.resultado,
-
-        descricao:
-          resposta.descricao || "",
-
-        acao:
-          resposta.acao || ""
-      }));
-
-  const { error: erroRespostas } =
-  await supabaseClient
-    .from("respostas_vistoria")
-    .insert(linhasRespostas);
-
-if (erroRespostas) {
-  throw erroRespostas;
-}
-
-// Cópia de segurança no Google Sheets
-try {
-  await fetch(
-    "https://script.google.com/macros/s/AKfycby2yl87uHhqs20pIYyAtAsjConxI0ExvRT_KXACD096dF7qSKopM85IgG3cv24CCf1Rqw/exec",
-    {
+    /*
+      Apps Script é outro domínio. O modo no-cors permite que o navegador
+      envie o POST sem depender de cabeçalhos CORS do Google. O corpo vai
+      como text/plain, mas continua sendo JSON e o doPost usa JSON.parse().
+    */
+    await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
       method: "POST",
       mode: "no-cors",
       headers: {
         "Content-Type": "text/plain;charset=utf-8"
       },
-      body: JSON.stringify({
-        respostas: linhasRespostas
-      })
-    }
-  );
+      body: JSON.stringify(payload)
+    });
 
-  console.log("Backup enviado ao Google Sheets.");
-
-} catch (erroSheets) {
-  console.error(
-    "Erro ao enviar cópia para o Google Sheets:",
-    erroSheets
-  );
-}
-
-localStorage.removeItem("tkeRascunho");
-
-   
+    localStorage.removeItem("tkeRascunho");
 
     mostrarStatus(
-      `Vistoria ${dados.idVistoria} enviada com 43 respostas para o banco central.`
+      `Vistoria ${dados.idVistoria} enviada. Foram encaminhadas ${payload.respostas.length} respostas para a planilha.`
     );
   } catch (erro) {
-    console.error(
-      "Erro ao enviar vistoria:",
-      erro
-    );
+    console.error("Erro ao enviar vistoria:", erro);
 
     mostrarStatus(
-      `Erro ao enviar a vistoria: ${erro.message}`,
+      "Não foi possível enviar a vistoria. Verifique sua conexão com a internet e tente novamente.",
       "error"
     );
   } finally {
     botao.disabled = false;
     botao.textContent = "Finalizar vistoria";
   }
+}
+
+/* ======================================================
+   LIMPAR DADOS / NOVA VISTORIA
+====================================================== */
+
+function limparDadosNovaVistoria() {
+  // Mantém o responsável para facilitar várias vistorias pelo mesmo técnico.
+  const responsavelAtual = campos.responsavel.value.trim();
+
+  localStorage.removeItem("tkeRascunho");
+
+  equipamentoSelecionado = null;
+  campos.busca.value = "";
+  campos.linha.value = "";
+  campos.estacao.value = "";
+  campos.tipo.value = "";
+  campos.fabricante.value = "";
+  campos.data.value = hojeISO();
+  campos.responsavel.value = responsavelAtual;
+
+  document.querySelectorAll('.item-card input[type="radio"]').forEach((radio) => {
+    radio.checked = false;
+  });
+
+  document.querySelectorAll(".item-card").forEach((card) => {
+    card.classList.remove("is-nc");
+
+    const descricao = card.querySelector(".descricao");
+    const acao = card.querySelector(".acao");
+
+    if (descricao) descricao.value = "";
+    if (acao) acao.value = "";
+  });
+
+  atualizarProgresso();
+
+  const mensagemEquipamento = $("mensagemEquipamento");
+  mensagemEquipamento.textContent = "";
+  mensagemEquipamento.className = "status hidden";
+
+  const statusFinal = $("statusFinal");
+  statusFinal.textContent = "";
+  statusFinal.className = "status hidden";
+
+  campos.busca.focus();
 }
 
 /* ======================================================
@@ -761,6 +702,19 @@ $("btnExcel").addEventListener(
 $("btnImprimir").addEventListener(
   "click",
   () => window.print()
+);
+
+$("btnLimpar").addEventListener(
+  "click",
+  () => {
+    const confirmar = window.confirm(
+      "Limpar os dados desta tela e iniciar uma nova vistoria?\n\nOs registros já enviados ao Google Sheets NÃO serão apagados."
+    );
+
+    if (confirmar) {
+      limparDadosNovaVistoria();
+    }
+  }
 );
 
 $("btnEnviar").addEventListener(
